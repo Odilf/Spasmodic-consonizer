@@ -15,19 +15,10 @@ macro bind(def, element)
 end
 
 # ╔═╡ 3bc9628c-8369-4dad-ad07-715125a7096a
-using Plots, PlutoUI
+using Plots, PyPlot, PlutoUI
 
 # ╔═╡ a9886b0e-1edb-4d75-aca0-268ae69463ff
 using WAV, FFTW
-
-# ╔═╡ a735956f-0d65-4166-b2ae-a9849e6255dd
-using Primes
-
-# ╔═╡ a5e60a0b-07ea-4c76-8334-be2941290556
-using Memoize
-
-# ╔═╡ 44d16583-2305-4dfa-957a-5d623ab331d2
-using QuadGK
 
 # ╔═╡ 45e03810-8992-11ec-2cf3-37c7be3d6bef
 md"""
@@ -39,20 +30,11 @@ In music, two notes sound consontant if the ratio bewteen their frequencies is s
 # ╔═╡ 87e93597-c711-4386-9a81-85ccde8d692f
 PlutoUI.TableOfContents()
 
-# ╔═╡ 9d0300c2-b31c-4919-9ac2-383aecb2b74c
-227//130
-
 # ╔═╡ d54ab8d6-46ae-4f29-bb12-8a5f7772f885
-plotly()
+pyplot()
 
-# ╔═╡ 2b49950b-b713-4fe6-9ba3-a7509ecac241
-md"""
-## Approach
-
-A kind of reasonable approach is to try to get the consonance between two frequencies. However, there are many reasons why this isn't really a good idea. 
-
-So a better approach is to take a given frequency and then see if there are notes that are at consonant intervals. In practice, we will take the "consonance factor" (denominator) and multiply it by the origianl volume
-"""
+# ╔═╡ a822b6c9-50db-419f-9ad6-d1a66cbf59a9
+const hearing_range = 20:20000
 
 # ╔═╡ 91f628a6-d279-4e3e-ab1a-74ab9eb85a3a
 md"""
@@ -60,199 +42,124 @@ md"""
 This is done using a Fourier transform, and computed using the FFT. There are many good libraries that do this. 
 """
 
-# ╔═╡ b978b095-e7f5-4f1c-8b7d-a420de4e5698
-@bind file Select([
+# ╔═╡ 9af06132-58ab-41c1-bc1c-a89ae087fef6
+files = [
 	"A.wav",
-	"simple.wav",
+	"disonancia.wav",
 	"A chord.wav",
 	"Amaj7b5.wav",
-])
+]
+
+# ╔═╡ b978b095-e7f5-4f1c-8b7d-a420de4e5698
+@bind file Select(files)
 
 # ╔═╡ f7771100-7af3-46e9-9577-dea8534bf9e9
 data = wavread(file)[1][:, 1]
 
-# ╔═╡ 1f14e468-b20d-4546-83a9-e4c55192e118
-# plot(fourier; legend=nothing, xlims)
-
-# ╔═╡ 9f236959-f4b8-4eef-848e-aa51735bdc71
-md"""
-A function to "continuify" vector is useful for this sort of thing. It just linearly interpolates between the values if it is not already on top of a value
-"""
-
-# ╔═╡ 1f4f2798-7d19-4051-b4ff-95aaa01ea41f
-function continuify(vector::Vector{<:Real}, t::Integer)
-	vector[t]
-end
-
-# ╔═╡ aff7194e-e598-49e1-b387-c4e81777b57e
-function continuify(vector::Vector{<:Real}, t::Real)
-	f = vector[floor(Int, t)]
-	c = vector[ceil(Int, t)]
-	f + (t % 1) * (c - f)
-end
-
-# ╔═╡ 44eedecb-7c06-49cb-aa5c-3dfa4fc24a1e
-function continuify(vector::Vector{<:Real})
-	t -> continuify(vector, t)
-end
-
-# ╔═╡ 08c65975-a541-4c09-bfa5-5b2387cb8c6b
-md"""
-## Faux peaks
-"""
-
-# ╔═╡ 3a555a33-e59a-492c-bac7-015ef9c500fa
-const hearing_range = 20:20_000
-
 # ╔═╡ 6785640f-05a4-4e83-ab21-3fc5f0a0400a
-fourier = abs.(fft(data))[hearing_range]
+fourier = abs.(fft(data))
 
 # ╔═╡ d3cafd33-9a9f-433b-8a80-570d60089e92
-plot(hearing_range, fourier; legend=nothing)
+Plots.plot(hearing_range, fourier[hearing_range]; legend=nothing, title="Disonancia (segunda menor)", dpi=500)
 
-# ╔═╡ 14969fbe-608b-4855-8aa1-11dc3c7cae05
-log_hearing = 2 .* exp10.(1:0.1:4)
-
-# ╔═╡ 6b66fb57-2617-47b8-a7c1-3b0e3238a818
-struct FauxPeak
-	frequency::Real
-	amplitude::Real
-	sharpness::Real
-end
-
-# ╔═╡ 2f217169-58b4-4598-b3b5-acb5c25fe766
-function fauxpeak(faux_peak::FauxPeak)
-	(; frequency, sharpness, amplitude) = faux_peak
-	x -> amplitude*ℯ^(-sharpness*(x-frequency)^2)
-end
-
-# ╔═╡ 5332b7ce-cf45-4795-b15b-4765d6f4219e
-function fauxpeak(peaks::Vector{FauxPeak})
-	x -> sum([fauxpeak(p)(x) for p in peaks])
-end
-
-# ╔═╡ e06282be-5602-449b-8ba6-cb167dee694e
-begin
-	peaks = [
-		FauxPeak(440, 1, 1),
-		FauxPeak(660, 0.5, 1),
-		FauxPeak(770, 0.25, 1),
-	]
-	
-	fs = fauxpeak(peaks)
-	plot(log_hearing, [fs(t) for t in log_hearing]; xaxis=:log)
-end
-
-# ╔═╡ 8ff9f068-c3e4-4bd5-bed9-3962cc41a6ae
+# ╔═╡ 04e2acc4-6d47-472c-aff8-166e41f16e81
 md"""
-## Coprime fractions
+# Consonance
 """
 
-# ╔═╡ d3da78e7-7edd-4bad-81f3-a390127a88c0
-@memoize function coprime_fractions(d::Integer; f::Real, max::Real=20e3)
-	max = Int(ceil(max/f)) * d
-	start = d + 1
-	fracs = [i//d for i in start:max]
-	filter(f -> denominator(f) == d, fracs)
+# ╔═╡ 49bd2100-fd0d-4358-93d2-a7ed80620b9b
+den(x) = denominator(x)
+
+# ╔═╡ aaad3792-4d49-475a-88f9-6afb0d2a156e
+consonance(d::Integer) = 1/log(d)
+
+# ╔═╡ 951af813-2285-456c-8150-028fd84ac1ba
+consonance(p::Rational) = 1/log(den(p))
+
+# ╔═╡ 38c7d509-6d2a-4b8d-b326-bcd186b894b9
+function iscoprime(a::Integer, b::Integer)
+	denominator(Rational(a, b)) == b
 end
 
-# ╔═╡ 711ba716-9cd0-4b7c-b2b0-d07c9b28a6e7
- coprime_fractions(1; f=440)
+# ╔═╡ 486566c4-0741-47ac-ba29-d56e9975a8b5
+approx(p::Real, d::Integer) = Rational(round(Int, p*d), d)
 
-# ╔═╡ 46601a05-aa28-4688-aabf-a5430bb72aad
-@bind dems Slider(1:20)
-
-# ╔═╡ f783e941-ad24-4fd5-9d35-757ef27640e6
-let 
-	canvas = plot()
-	for i in 1:dems
-		facs = coprime_fractions(i, f=440)
-		plot!(ones(length(facs)), facs; st=:scatter, ylims=(10, 11), label="d=$i")
+# ╔═╡ 92deba62-eb27-4d4c-ae75-f70e0c8d1d0c
+function fraction_error(p::Real, d::Integer) 
+	num = round(Int, p*d)
+	if iscoprime(num, d)
+		num/(d*p) - 1
+	else
+		Inf
 	end
-	canvas
 end
 
-# ╔═╡ 14ba7f9e-0238-46eb-ac69-b9778cdee0c2
-md"""
-## Consonance 
-"""
-
-# ╔═╡ 243d46da-b613-41cd-8462-090966ac4b9c
-md"""
-We have a function $$a(f)$$ that takes a frequecy and outputs an amplitude value
-"""
-
-# ╔═╡ 3d60b8d4-ee7c-47cc-95b3-43c50bb766e9
-function consonance(denominator::Integer)
-	1/denominator
+# ╔═╡ 97b713d8-d872-4b0f-a7e4-3d9c114acbac
+function k(d::Integer, p::Real, α::Real = 10e3)
+	ℯ^(-α * (fraction_error(p, d)^2))
 end
 
-# ╔═╡ 94a9818a-b727-44b4-adf4-050da6259feb
-function consonance(frequency::Real, fourier::Function, max_denominator::Integer=20)
-	a = fourier(frequency)
-
-	if a < 0.01
-		return 0
-	end
-	
-	total = 0
-
-	for denominator in 1:max_denominator
-		for ratio in coprime_fractions(denominator; f=frequency)
-			total += fourier(ratio * frequency) * consonance(denominator)
+# ╔═╡ 69828194-e132-46ea-b2d2-7d41e33257a0
+function consonance(p::Real)
+	max = 0
+	for d in 2:10
+		temp = k(d, p)/log(d)
+		if temp > max
+			max = temp
 		end
 	end
-
-	a * total
+	max
 end
 
-# ╔═╡ b1889ef8-39b4-4184-9bcd-2240299574a8
-function consonance(fourier::Function, max_denominator::Integer=20)
+# ╔═╡ f4cf9ee9-5dd5-4bec-a173-43fb2e13236c
+function consonance(frequencies::Vector{<:Complex})
+	consonance(abs.(frequencies))
+end
+
+# ╔═╡ c71fb5ae-fb9b-4eae-8aaa-aa6400b1d182
+forrer(range::AbstractRange, vector::Vector{<:Any}) = zip(range, vector[range])
+
+# ╔═╡ ef2a416e-95f8-45cd-bf24-e50195ce9a9a
+function consonance(frequencies::Vector{<:Real}, hearing_range=hearing_range)
 	total = 0
-	for f in hearing_range
-		total += consonance(f, fourier, max_denominator)
+	
+	for (ξ1, v1) in forrer(hearing_range, frequencies)
+		inner = 0
+		for (ξ2, v2) in forrer(range(ξ1, length(frequencies)), frequencies)
+			inner += consonance(ξ2/ξ1) * v2
+		end
+		total += v1 * inner
 	end
 
-	integral = quadgk(t -> abs(fourier(t)), 20, 20e3; rtol=1e-1)[1]
-	total/integral
+	total/sum(frequencies[hearing_range])^2
 end
 
-# ╔═╡ 8964157a-3643-4718-ab03-fe8b0a63f562
- coprime_fractions(1; f=440)
+# ╔═╡ 8fe83ece-8f4e-4467-a219-7b4cad854ed7
+let
+	range = 1:0.0005:2
+	Plots.plot(range, [consonance(x) for x in range]; dpi=900, legend=nothing)
+end
 
-# ╔═╡ bce93ab6-40a9-4945-af46-95b17576c65a
- coprime_fractions(2; f=440)
+# ╔═╡ 2d0cb008-a286-4d39-a455-f3c65a821730
+[i for i in zip(hearing_range, fourier[hearing_range])]
 
-# ╔═╡ bbfe0ea8-6bab-43f2-a081-cf84cccb925c
-consonance(440, fs)
-
-# ╔═╡ 2cdaf443-383b-4a51-abd8-454efb51da42
-consonance(fs)
-
-# ╔═╡ 95fc7d37-c50c-46c3-8f20-25fd0096b038
-consonance(t -> sin(t))
-
-# ╔═╡ 303a16fc-724f-4ea8-bf68-4a86fff7304f
-plot(fourier; legend=nothing)
+# ╔═╡ 62bcada4-be7d-4552-a8d4-23c39b1039be
+consonance(fourier, 1:1000:20000)
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-Memoize = "c03570c3-d221-55d1-a50c-7939bbd78826"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-Primes = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
-QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
+PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 WAV = "8149f6b0-98f6-5db9-b78f-408fbbb8ef88"
 
 [compat]
 FFTW = "~1.4.5"
-Memoize = "~0.4.4"
 Plots = "~1.25.8"
 PlutoUI = "~0.7.34"
-Primes = "~0.5.1"
-QuadGK = "~2.4.2"
+PyPlot = "~2.10.0"
 WAV = "~1.2.0"
 """
 
@@ -262,7 +169,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.0-DEV.1456"
 manifest_format = "2.0"
-project_hash = "d74bd72b7bb513cd496036cba5da18b896a5914a"
+project_hash = "4aee8e453592b8a708b4608d8f4cb0550e06ee73"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -350,6 +257,12 @@ version = "3.41.0"
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "0.5.0+0"
+
+[[deps.Conda]]
+deps = ["Downloads", "JSON", "VersionParsing"]
+git-tree-sha1 = "6cdc8832ba11c7695f494c9d9a1c31e90959ce0f"
+uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
+version = "1.6.0"
 
 [[deps.Contour]]
 deps = ["StaticArrays"]
@@ -774,12 +687,6 @@ git-tree-sha1 = "75a54abd10709c01f1b86b84ec225d26e840ed58"
 uuid = "e89f7d12-3494-54d1-8411-f7d8b9ae1f27"
 version = "0.5.0"
 
-[[deps.Memoize]]
-deps = ["MacroTools"]
-git-tree-sha1 = "2b1dfcba103de714d31c033b5dacc2e4a12c7caa"
-uuid = "c03570c3-d221-55d1-a50c-7939bbd78826"
-version = "0.4.4"
-
 [[deps.Missings]]
 deps = ["DataAPI"]
 git-tree-sha1 = "bf210ce90b6c9eed32d25dbcae1ebc565df2687f"
@@ -889,11 +796,6 @@ git-tree-sha1 = "2cf929d64681236a2e074ffafb8d568733d2e6af"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
 version = "1.2.3"
 
-[[deps.Primes]]
-git-tree-sha1 = "984a3ee07d47d401e0b823b7d30546792439070a"
-uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
-version = "0.5.1"
-
 [[deps.Printf]]
 deps = ["Unicode"]
 uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
@@ -902,17 +804,23 @@ uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 deps = ["Printf"]
 uuid = "9abbd945-dff8-562f-b5e8-e1ebf5ef1b79"
 
+[[deps.PyCall]]
+deps = ["Conda", "Dates", "Libdl", "LinearAlgebra", "MacroTools", "Serialization", "VersionParsing"]
+git-tree-sha1 = "71fd4022ecd0c6d20180e23ff1b3e05a143959c2"
+uuid = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+version = "1.93.0"
+
+[[deps.PyPlot]]
+deps = ["Colors", "LaTeXStrings", "PyCall", "Sockets", "Test", "VersionParsing"]
+git-tree-sha1 = "14c1b795b9d764e1784713941e787e1384268103"
+uuid = "d330b81b-6aea-500a-939a-2ce795aea3ee"
+version = "2.10.0"
+
 [[deps.Qt5Base_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "Libdl", "Libglvnd_jll", "OpenSSL_jll", "Pkg", "Xorg_libXext_jll", "Xorg_libxcb_jll", "Xorg_xcb_util_image_jll", "Xorg_xcb_util_keysyms_jll", "Xorg_xcb_util_renderutil_jll", "Xorg_xcb_util_wm_jll", "Zlib_jll", "xkbcommon_jll"]
 git-tree-sha1 = "ad368663a5e20dbb8d6dc2fddeefe4dae0781ae8"
 uuid = "ea2cea3b-5b76-57ae-a6ef-0a8af62496e1"
 version = "5.15.3+0"
-
-[[deps.QuadGK]]
-deps = ["DataStructures", "LinearAlgebra"]
-git-tree-sha1 = "78aadffb3efd2155af139781b8a8df1ef279ea39"
-uuid = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
-version = "2.4.2"
 
 [[deps.REPL]]
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
@@ -1067,6 +975,11 @@ version = "0.4.1"
 git-tree-sha1 = "34db80951901073501137bdbc3d5a8e7bbd06670"
 uuid = "41fe7b60-77ed-43a1-b4f0-825fd5a5650d"
 version = "0.1.2"
+
+[[deps.VersionParsing]]
+git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
+uuid = "81def892-9a0e-5fdd-b105-ffc91e053289"
+version = "1.3.0"
 
 [[deps.WAV]]
 deps = ["Base64", "FileIO", "Libdl", "Logging"]
@@ -1303,45 +1216,29 @@ version = "0.9.1+5"
 # ╟─45e03810-8992-11ec-2cf3-37c7be3d6bef
 # ╠═3bc9628c-8369-4dad-ad07-715125a7096a
 # ╠═87e93597-c711-4386-9a81-85ccde8d692f
-# ╠═9d0300c2-b31c-4919-9ac2-383aecb2b74c
 # ╠═d54ab8d6-46ae-4f29-bb12-8a5f7772f885
-# ╟─2b49950b-b713-4fe6-9ba3-a7509ecac241
+# ╠═a822b6c9-50db-419f-9ad6-d1a66cbf59a9
 # ╟─91f628a6-d279-4e3e-ab1a-74ab9eb85a3a
 # ╠═a9886b0e-1edb-4d75-aca0-268ae69463ff
-# ╟─b978b095-e7f5-4f1c-8b7d-a420de4e5698
+# ╠═9af06132-58ab-41c1-bc1c-a89ae087fef6
+# ╠═b978b095-e7f5-4f1c-8b7d-a420de4e5698
 # ╠═f7771100-7af3-46e9-9577-dea8534bf9e9
 # ╠═6785640f-05a4-4e83-ab21-3fc5f0a0400a
 # ╠═d3cafd33-9a9f-433b-8a80-570d60089e92
-# ╠═1f14e468-b20d-4546-83a9-e4c55192e118
-# ╟─9f236959-f4b8-4eef-848e-aa51735bdc71
-# ╠═1f4f2798-7d19-4051-b4ff-95aaa01ea41f
-# ╠═aff7194e-e598-49e1-b387-c4e81777b57e
-# ╠═44eedecb-7c06-49cb-aa5c-3dfa4fc24a1e
-# ╟─08c65975-a541-4c09-bfa5-5b2387cb8c6b
-# ╠═3a555a33-e59a-492c-bac7-015ef9c500fa
-# ╠═14969fbe-608b-4855-8aa1-11dc3c7cae05
-# ╠═6b66fb57-2617-47b8-a7c1-3b0e3238a818
-# ╠═2f217169-58b4-4598-b3b5-acb5c25fe766
-# ╠═5332b7ce-cf45-4795-b15b-4765d6f4219e
-# ╠═e06282be-5602-449b-8ba6-cb167dee694e
-# ╟─8ff9f068-c3e4-4bd5-bed9-3962cc41a6ae
-# ╠═a735956f-0d65-4166-b2ae-a9849e6255dd
-# ╠═a5e60a0b-07ea-4c76-8334-be2941290556
-# ╠═d3da78e7-7edd-4bad-81f3-a390127a88c0
-# ╠═711ba716-9cd0-4b7c-b2b0-d07c9b28a6e7
-# ╠═46601a05-aa28-4688-aabf-a5430bb72aad
-# ╠═f783e941-ad24-4fd5-9d35-757ef27640e6
-# ╟─14ba7f9e-0238-46eb-ac69-b9778cdee0c2
-# ╟─243d46da-b613-41cd-8462-090966ac4b9c
-# ╠═3d60b8d4-ee7c-47cc-95b3-43c50bb766e9
-# ╠═94a9818a-b727-44b4-adf4-050da6259feb
-# ╠═b1889ef8-39b4-4184-9bcd-2240299574a8
-# ╠═8964157a-3643-4718-ab03-fe8b0a63f562
-# ╠═bce93ab6-40a9-4945-af46-95b17576c65a
-# ╠═bbfe0ea8-6bab-43f2-a081-cf84cccb925c
-# ╠═2cdaf443-383b-4a51-abd8-454efb51da42
-# ╠═95fc7d37-c50c-46c3-8f20-25fd0096b038
-# ╠═44d16583-2305-4dfa-957a-5d623ab331d2
-# ╠═303a16fc-724f-4ea8-bf68-4a86fff7304f
+# ╟─04e2acc4-6d47-472c-aff8-166e41f16e81
+# ╠═49bd2100-fd0d-4358-93d2-a7ed80620b9b
+# ╠═aaad3792-4d49-475a-88f9-6afb0d2a156e
+# ╠═951af813-2285-456c-8150-028fd84ac1ba
+# ╠═38c7d509-6d2a-4b8d-b326-bcd186b894b9
+# ╠═486566c4-0741-47ac-ba29-d56e9975a8b5
+# ╠═92deba62-eb27-4d4c-ae75-f70e0c8d1d0c
+# ╠═97b713d8-d872-4b0f-a7e4-3d9c114acbac
+# ╠═69828194-e132-46ea-b2d2-7d41e33257a0
+# ╠═8fe83ece-8f4e-4467-a219-7b4cad854ed7
+# ╠═f4cf9ee9-5dd5-4bec-a173-43fb2e13236c
+# ╠═c71fb5ae-fb9b-4eae-8aaa-aa6400b1d182
+# ╠═ef2a416e-95f8-45cd-bf24-e50195ce9a9a
+# ╠═2d0cb008-a286-4d39-a455-f3c65a821730
+# ╠═62bcada4-be7d-4552-a8d4-23c39b1039be
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
