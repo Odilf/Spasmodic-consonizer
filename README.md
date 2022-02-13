@@ -5,4 +5,4 @@ I named it spasmodic because it is a fun word. It is meant to convey that ratios
 
 # How to run
 
-It is a [Pluto notebook](https://github.com/fonsp/Pluto.jl), which you'll need to get up and running after installing [Julia](https://julialang.org). 
+It is a [Pluto notebook](https://github.com/fonsp/Pluto.jl), which you'll need to get up and running after installing [Julia](https://julialang.org). Afterwards, you can just paste this link: https://github.com/Odilf/Spasmodic-consonizer/blob/main/spasmodic-consonizer.jl. 
