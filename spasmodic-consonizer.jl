@@ -22,7 +22,9 @@ using WAV, FFTW
 
 # ╔═╡ 45e03810-8992-11ec-2cf3-37c7be3d6bef
 md"""
-# Consonizer, the third
+# Spasmodic consonizer
+
+*A fuzzy consonance analizer*
 
 In music, two notes sound consontant if the ratio bewteen their frequencies is simples. That is, the fraction has a low denominator, it is more consonant. 
 """
@@ -60,7 +62,7 @@ data = wavread(file)[1][:, 1]
 fourier = abs.(fft(data))
 
 # ╔═╡ d3cafd33-9a9f-433b-8a80-570d60089e92
-Plots.plot(hearing_range, fourier[hearing_range]; legend=nothing, title="Disonancia (segunda menor)", dpi=500)
+Plots.plot(hearing_range, fourier[hearing_range]; legend=nothing, dpi=500)
 
 # ╔═╡ 04e2acc4-6d47-472c-aff8-166e41f16e81
 md"""
@@ -78,7 +80,11 @@ consonance(p::Rational) = 1/log(den(p))
 
 # ╔═╡ 38c7d509-6d2a-4b8d-b326-bcd186b894b9
 function iscoprime(a::Integer, b::Integer)
-	denominator(Rational(a, b)) == b
+	if a == 0 || b == 0
+		true
+	else
+		denominator(Rational(a, b)) == b
+	end
 end
 
 # ╔═╡ 486566c4-0741-47ac-ba29-d56e9975a8b5
@@ -95,20 +101,21 @@ function fraction_error(p::Real, d::Integer)
 end
 
 # ╔═╡ 97b713d8-d872-4b0f-a7e4-3d9c114acbac
-function k(d::Integer, p::Real, α::Real = 10e3)
+function k(d::Integer, p::Real, α::Real = 1e4)
 	ℯ^(-α * (fraction_error(p, d)^2))
 end
 
 # ╔═╡ 69828194-e132-46ea-b2d2-7d41e33257a0
 function consonance(p::Real)
-	max = 0
-	for d in 2:10
-		temp = k(d, p)/log(d)
-		if temp > max
-			max = temp
-		end
-	end
-	max
+	# max = 0
+	# for d in 1:10
+	# 	temp = k(d, p)/(log(d)+1)
+	# 	if temp > max
+	# 		max = temp
+	# 	end
+	# end
+	# max
+	sum([k(d, p)/(log(d)+1) for d in 1:10])
 end
 
 # ╔═╡ f4cf9ee9-5dd5-4bec-a173-43fb2e13236c
@@ -135,16 +142,24 @@ function consonance(frequencies::Vector{<:Real}, hearing_range=hearing_range)
 end
 
 # ╔═╡ 8fe83ece-8f4e-4467-a219-7b4cad854ed7
-let
-	range = 1:0.0005:2
-	Plots.plot(range, [consonance(x) for x in range]; dpi=900, legend=nothing)
-end
-
-# ╔═╡ 2d0cb008-a286-4d39-a455-f3c65a821730
-[i for i in zip(hearing_range, fourier[hearing_range])]
+Plots.plot(1:0.0005:2, consonance; dpi=900, legend=nothing)
 
 # ╔═╡ 62bcada4-be7d-4552-a8d4-23c39b1039be
-consonance(fourier, 1:1000:20000)
+md"""
+Consonance of $file is $(consonance(fourier, 1:1000:20000))
+"""
+
+# ╔═╡ 9a4e0493-8dd2-4df0-889d-4a0550c70406
+let
+	canvas = Plots.plot()
+	bar!(["La", "Disonancia", "Acorde mayor", "Acorde complejo"], [ 4114.1978435087585, 4092.302316457369, 5200.861455192729, 1172.7676785870208]; legend=nothing, dpi=900)
+end
+
+# ╔═╡ 4e093ffa-fb0e-4496-a74a-772c1768f5fc
+let
+	range = 20:20:20000
+	Plots.plot(range, range, (x,y) -> consonance(x/y); dpi=700, st=:heatmap)
+end
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -169,7 +184,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.8.0-DEV.1456"
 manifest_format = "2.0"
-project_hash = "4aee8e453592b8a708b4608d8f4cb0550e06ee73"
+project_hash = "4c6020e5691ad0e3df89d30eab02bb9e0302109d"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
@@ -1238,7 +1253,8 @@ version = "0.9.1+5"
 # ╠═f4cf9ee9-5dd5-4bec-a173-43fb2e13236c
 # ╠═c71fb5ae-fb9b-4eae-8aaa-aa6400b1d182
 # ╠═ef2a416e-95f8-45cd-bf24-e50195ce9a9a
-# ╠═2d0cb008-a286-4d39-a455-f3c65a821730
-# ╠═62bcada4-be7d-4552-a8d4-23c39b1039be
+# ╟─62bcada4-be7d-4552-a8d4-23c39b1039be
+# ╠═9a4e0493-8dd2-4df0-889d-4a0550c70406
+# ╠═4e093ffa-fb0e-4496-a74a-772c1768f5fc
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
